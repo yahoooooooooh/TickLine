@@ -1,0 +1,21 @@
+# 依赖文件夹
+node_modules/
+
+# 操作系统生成的文件
+.DS_Store
+Thumbs.db
+
+# 编译输出或打包文件
+dist/
+build/
+*.p
+*.egg-info/
+
+# 用户的本地数据和日志 (确保不会把个人数据上传)
+data/
+logs/
+
+# Electron 打包工具的缓存
+.electron/
+
+release/

@@ -1,0 +1,914 @@
+/* style.css */
+
+/* --- 新增：窗口拖动区域设置 --- */
+body {
+  /*
+    为顶部留出 40px 的空间作为可拖动的"标题栏"。
+    这个空间会把右上角的按钮组也包含进去。
+   */
+  padding-top: 40px;
+  
+  /* 关键：将 body 区域设置为可拖动 */
+  -webkit-app-region: drag;
+}
+
+/*
+  关键：将 body 内所有直接子元素设置为"不可拖动"，
+  这样你的时间轴、按钮、弹窗等所有内容才能响应鼠标点击。
+*/
+body > * {
+  -webkit-app-region: no-drag;
+}
+
+/*
+ * START: FIX
+ *
+ * 修复：为 dialog 元素明确设置 -webkit-app-region: no-drag。
+ * 原因：当 <dialog> 通过 .showModal() 打开时，它会被渲染到特殊的“顶层 (top layer)”，
+ * 这可能导致 body > * 的通用规则对其失效。因此，部分弹窗区域（如下方的按钮）
+ * 错误地继承了 body 的 drag 属性，导致无法点击。
+ * 此规则确保所有弹窗都是可交互的。
+ */
+dialog {
+  -webkit-app-region: no-drag;
+}
+/* END: FIX */
+/* -------------------------------- */
+
+:root{
+  /* (新) 整体淡黄色系主题色板 */
+  --bg: #fdfaf3;            /* 主背景: 非常淡的米黄色 */
+  --surface: #fffefb;      /* 表面/卡片背景: 近乎白色的奶油色 */
+  --text: #5d5345;          /* 主文字: 暖调的深灰棕色 */
+  --text-light: #9e9488;    /* 辅助文字/刻度: 浅灰棕色 */
+  --line: #e4e0d8;          /* 线条/边框: 淡褐色 */
+  --primary: #8a7a66;        /* 主色调/按钮: 饱和度较低的暖灰褐色 */
+  --primary-light: #a89a88;   /* (新) 主色调的亮色，用于渐变 */
+  --primary-text: #ffffff;  /* 主色调按钮文字: 白色 */
+  --danger: #d9534f;        /* 危险/删除按钮颜色 */
+
+  /* (新) 任务块的单色递进方案 (黄灰色系) */
+  --color-daily: #f2eee8;   /* 每日: 最浅的灰褐色 */
+  --color-weekly: #e8e2d9;  /* 每周: 灰褐色 +1 深度 */
+  --color-monthly: #dcd5ca; /* 每月: 灰褐色 +2 深度 */
+  --color-yearly: #d0c8bd;  /* 每年: 灰褐色 +3 深度 */
+}
+*{box-sizing:border-box}
+html,body{height:100%;}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family: "方正清刻本悦宋简体", "FZQingKeBenYueSongS-R-GB", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Microsoft YaHei", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 整页即时间轴容器 */
+#timeline{ position:relative; width:100vw; min-height:100vh; overflow:hidden; cursor:grab; }
+#timeline:active{ cursor:grabbing; }
+
+/* 禁用时间轴区域的文本选择 */
+#timeline, #timeline * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+.baseline{ position:absolute; left:0; right:0; height:2px; background: linear-gradient(to bottom, transparent 0%, var(--line) 50%, transparent 100%); top:75%; z-index: 1; position: relative; }
+.baseline::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: rgba(138, 122, 102, 0.3); animation: water-ripple 3s ease-in-out infinite; }
+
+@keyframes water-ripple {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scaleY(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scaleY(1.5);
+  }
+}
+.tick-label{ position:absolute; top:calc(75% + 10px); font-size:14px; color:var(--text-light); font-style:italic; transform:translateX(-50%); white-space:nowrap; }
+.tick-line{ position:absolute; top: calc(75% - 4px); width:1px; height:10px; background:var(--line); }
+.tick-line.minor { height: 6px; top: calc(75% - 2px); opacity: 0.6; }
+
+.task{
+  position:absolute; height:28px; border-radius:6px;
+  display:flex; align-items:center; padding:0 10px; gap:6px;
+  font-size:12px; font-weight:700; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis;
+  transition: transform .15s ease, box-shadow .15s ease;
+  cursor: pointer; border: none; color: var(--text);
+}
+.task:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(100,90,70,0.1); }
+.task .icon { width: 14px; height: 14px; }
+.task.daily{ background: var(--color-daily); }
+.task.weekly{ background: var(--color-weekly); }
+.task.monthly{ background: var(--color-monthly); }
+.task.yearly{ background: var(--color-yearly); }
+.task.completed{ opacity:.6; filter: grayscale(50%); }
+.task.completed .task-name { text-decoration: line-through; }
+
+/* 已完成任务的"水葬"效果 */
+.task.sunken {
+  /* 不可交互 */
+  pointer-events: none;
+  cursor: default;
+  
+  /* 水中的视觉效果 */
+  opacity: 0.35;
+  
+  /* 轻微模糊 + 蓝绿色调 */
+  filter: blur(0.5px) saturate(0.7) hue-rotate(180deg);
+  
+  /* 移除悬停效果 */
+  transform-origin: center;
+  transition: none;
+  
+  /* 轻微的浮动动画 */
+  animation: underwater-float 8s ease-in-out infinite;
+}
+
+/* 移除已完成任务的悬停效果 */
+.task.sunken:hover {
+  transform: none; /* 覆盖原有的 translateY(-2px) */
+  box-shadow: none;
+}
+
+/* 水中浮动动画 */
+@keyframes underwater-float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  25% {
+    transform: translateY(-3px);
+  }
+  50% {
+    transform: translateY(0px);
+  }
+  75% {
+    transform: translateY(3px);
+  }
+}
+
+/* 为不同类型的任务添加不同的动画延迟，制造错落感 */
+.task.sunken.daily {
+  animation-delay: 0s;
+}
+
+.task.sunken.weekly {
+  animation-delay: 2s;
+}
+
+.task.sunken.monthly {
+  animation-delay: 4s;
+}
+
+.task.sunken.yearly {
+  animation-delay: 6s;
+}
+
+/* (新) 用于隐藏过窄任务的文字 */
+.task.text-hidden .task-name,
+.task.text-hidden .icon {
+  display: none;
+}
+
+#taskPopover{
+  position:absolute; z-index:100;
+  width:280px; background:var(--surface); border-radius:12px;
+  box-shadow: 0 10px 30px rgba(100,90,70,0.15); border: 1px solid var(--line);
+  padding: 16px;
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  /* 使用 pointer-events 替代 display:none 来允许动画 */
+  pointer-events: none; 
+}
+#taskPopover h4{ margin:0 0 8px; font-size:16px; color: var(--text); }
+#taskPopover p { margin:4px 0; font-size:12px; color:var(--text-light); }
+#taskPopover .description { margin-top:8px; font-size:13px; max-height: 60px; overflow-y: auto; }
+#taskPopover .footer { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; }
+
+/* (修改) 右上角按钮容器 */
+.top-right-controls { position:fixed; top:14px; right:14px; display:flex; gap: 8px; z-index: 150; }
+.top-right-controls .btn-top { border:1px solid var(--line); background:var(--surface); padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:700; transition: all .2s ease; color: var(--text); }
+.top-right-controls .btn-top:hover { background: var(--bg); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+
+dialog{ border:none; border-radius:14px; padding:0; overflow:visible; box-shadow: 0 18px 40px rgba(100,90,70,0.18); width:min(720px, 92vw); background: var(--surface); }
+dialog::backdrop { background: rgba(80,70,60,0.3); backdrop-filter: blur(4px); }
+.modal-header { padding: 18px 24px; border-bottom: 1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
+.modal-header h3 { margin:0; font-size: 18px; color: var(--text); }
+.modal-close-btn { font-size:24px; color:var(--text-light); background:none; border:none; cursor:pointer; line-height: 1; padding:0; }
+.modal-close-btn:focus { outline: none; }
+.modal-body { 
+  padding: 24px; 
+  max-height: 70vh;  /* 防止内容过多把底部按钮挤出视口 */
+  overflow: auto;    /* 让内容区内部滚动 */
+}
+.modal-footer { padding: 16px 24px; background:var(--bg); border-top: 1px solid var(--line); display:flex; justify-content:space-between; gap:8px; border-bottom-left-radius: 14px; border-bottom-right-radius: 14px; }
+.row{ display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-bottom: 16px; }
+
+/* 阶段配置并排：阶段数量 + 每阶段消耗 + 确认阶段（同一行） */
+.row.stage-inline{
+  grid-template-columns: 1fr 1fr 1fr auto; /* 三个输入等宽 + 按钮列自适应 */
+  align-items: end; /* 让按钮与输入底部对齐 */
+  gap: 16px;
+}
+
+/* 按钮所在 field 收紧间距，让按钮更贴近输入 */
+.field.field-confirm{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 窄屏自适应：小于 880px 时自动换行两列；更窄时一列 */
+@media (max-width: 880px){
+  .row.stage-inline{
+    grid-template-columns: 1fr 1fr;
+  }
+  .field.field-confirm{
+    align-items: flex-start; /* 按钮靠左 */
+  }
+}
+@media (max-width: 520px){
+  .row.stage-inline{
+    grid-template-columns: 1fr;
+  }
+}
+.field{ display:flex; flex-direction:column; gap:6px; }
+.field label { font-weight: 600; font-size: 14px; color: var(--text); }
+.field input, .field textarea, .field select{ padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--surface); transition: border-color .2s, box-shadow .2s; color: var(--text); }
+.field input:focus, .field textarea:focus, .field select:focus { outline:none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(138, 122, 102, 0.2); }
+.help-text { font-size: 12px; color: var(--text-light); margin-top: 4px; }
+
+.btn{ border:1px solid var(--line); background:var(--surface); padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; transition: all .2s ease; color: var(--text); }
+.btn:hover { background: var(--bg); }
+.btn.primary{ background:var(--primary); color:var(--primary-text); border-color:var(--primary); }
+.btn.primary:hover { background: #756856; }
+.btn.danger { color: var(--danger); border-color: #e5a09e; }
+.btn.danger:hover { background: rgba(217, 83, 79, 0.05); }
+.toast{ position:fixed; right:16px; bottom:16px; background:var(--text); color:var(--bg); padding:12px 16px; border-radius:12px; box-shadow: 0 10px 30px rgba(0,0,0,.2); opacity:0; transform: translateY(8px); transition:.2s ease; z-index: 9999; pointer-events: none; }
+.toast.show{ opacity:1; transform: translateY(0); }
+
+#rewardsTrack { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg); z-index: 200; display: flex; justify-content: center; align-items: flex-start; padding: 40px 24px; overflow-y: auto; }
+.rewards-content { width: 100%; max-width: 900px; display: flex; flex-direction: column; gap: 32px; }
+.rewards-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+.rewards-header h2 { margin: 0 0 4px; color: var(--text); font-size:24px; }
+.rewards-header p { margin: 0; color: var(--text-light); }
+.rewards-stats { display: grid; grid-template-columns: 2fr 3fr; gap: 24px; align-items: start; }
+.stats-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 24px; box-shadow: 0 4px 12px rgba(100,90,70,0.05); }
+.rewards-points-display { text-align: center; display: flex; flex-direction: column; justify-content: center; gap: 8px; height: 100%; }
+.rewards-points-display .label { font-size: 14px; color: var(--text-light); text-transform: uppercase; letter-spacing: .5px; }
+.rewards-points-display .points { font-size: 64px; font-weight: 700; line-height: 1; background: linear-gradient(45deg, var(--primary-light), var(--primary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.current-limits h4 { margin: 0 0 16px; font-size: 16px; color: var(--text); }
+.current-limits ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.current-limits li { display: flex; justify-content: space-between; align-items: center; font-size: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.current-limits li:last-child { border-bottom: none; padding-bottom: 0; }
+.current-limits .limit-label { color: var(--text-light); }
+.current-limits .limit-value { font-weight: 700; color: var(--text); background: var(--bg); padding: 2px 8px; border-radius: 6px; }
+/* --- 从这里开始替换 --- */
+
+/* --- 新增：隐藏滚动条样式 --- */
+/* 隐藏整个应用的滚动条 */
+::-webkit-scrollbar {
+  width: 0px;
+  height: 0px;
+}
+
+/* 隐藏特定元素的滚动条 */
+#taskPopover .description::-webkit-scrollbar {
+  width: 0px;
+}
+
+/* 确保Firefox也隐藏滚动条 */
+* {
+  scrollbar-width: none;
+}
+
+/* 针对特定元素确保Firefox隐藏滚动条 */
+#taskPopover .description {
+  scrollbar-width: none;
+}
+/* -------------------------------- */
+
+#trackContainer { 
+  position: relative; 
+  width: 100%; 
+  /* (修改) 调整容器高度，为下方的数值留出空间 */ 
+  height: 40px; 
+  margin-top: 20px; 
+}
+
+.track-line { 
+  position: absolute; 
+  /* (修改) 将线置于容器顶部 */ 
+  top: 0; 
+  left: 0; 
+  right: 0; 
+  /* (修改) 简化为更细的实线 */ 
+  height: 2px; 
+  background: var(--line); 
+  border-radius: 1px; 
+  /* (删除) 移除了渐变和阴影 */ 
+}
+
+.track-progress { 
+  position: absolute; 
+  /* (修改) 将进度条也置于容器顶部 */ 
+  top: 0; 
+  left: 0; 
+  /* (修改) 稍微加粗以覆盖底线 */ 
+  height: 3px; 
+  background: var(--primary); /* (修改) 简化为纯色 */ 
+  border-radius: 2px; 
+  /* (删除) 移除了过渡动画和阴影 */ 
+  transform: translateY(-0.5px); /* 微调使其视觉上居中 */ 
+}
+
+#trackMilestones { 
+  position: relative; 
+  height: 100%; 
+}
+
+.milestone { 
+  position: absolute; 
+  /* (修改) 垂直对齐到顶部的线上 */ 
+  top: 1.5px; 
+  transform: translate(-50%, -50%); 
+  /* (修改) 简化节点样式 */ 
+  width: 12px; 
+  height: 12px; 
+  background: var(--bg); /* 使用背景色打底，避免被进度条覆盖 */ 
+  border-radius: 50%; 
+  border: 2px solid var(--line); /* (修改) 统一使用灰色边框 */ 
+  cursor: help; 
+  /* (删除) 移除了过渡效果 */ 
+}
+
+.milestone.unlocked { 
+  /* (修改) 解锁后仅改变背景色，不改变大小和边框颜色 */ 
+  background: var(--text-light); 
+  border-color: var(--text-light); 
+  /* (删除) 移除了尺寸变化、阴影和动画 */ 
+}
+
+.milestone::after { 
+  content: attr(data-points); 
+  position: absolute; 
+  /* (修改) 将数值定位在线的下方 */ 
+  top: 18px; 
+  left: 50%; 
+  transform: translateX(-50%); 
+  font-size: 14px; 
+  font-weight: 600; 
+  color: var(--text-light); 
+  /* (修改) 移除背景，让文字更干净 */ 
+  padding: 0; 
+  background: none; 
+}
+
+.milestone.unlocked::after { 
+  color: var(--text); 
+}
+
+/* (删除) 整个 pulse 动画关键帧被移除 */
+.milestone .tooltip { visibility: hidden; opacity: 0; position: absolute; bottom: 160%; left: 50%; transform: translateX(-50%) translateY(5px); width: 200px; background: var(--text); color: var(--bg); text-align: center; padding: 10px; border-radius: 8px; font-size: 13px; white-space: normal; transition: opacity 0.2s, transform 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+.milestone:hover .tooltip { visibility: visible; opacity: 1; transform: translateX(-50%) translateY(0); }
+.achievements-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 24px; box-shadow: 0 4px 12px rgba(100,90,70,0.05); }
+.achievements-card h4 { margin: 0 0 16px; font-size: 16px; color: var(--text); }
+.achievements-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.achievement-item { padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.achievement-item .name { font-weight: 700; }
+.achievement-item .desc { font-size: 12px; color: var(--text-light); margin: 4px 0 8px; }
+.achievement-tiers { display: flex; gap: 6px; }
+.tier { flex: 1; height: 8px; background: var(--line); border-radius: 4px; position: relative; cursor: help; }
+.tier.unlocked { background: var(--primary); }
+.tier .tooltip { visibility: hidden; opacity: 0; position: absolute; bottom: 150%; left: 50%; transform: translateX(-50%); padding: 4px 8px; background: var(--text); color: var(--bg); border-radius: 4px; font-size: 11px; white-space: nowrap; transition: opacity .2s; }
+.tier:hover .tooltip { visibility: visible; opacity: 1; }
+
+#treasureChest { position: fixed; bottom: 20px; right: 20px; width: 64px; height: 64px; background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%238a7a66"><path d="M20 6H4V4h16v2zm-2 2H6v10h12V8z" opacity=".3"/><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 6h16v2H4V6zm14 12H6V8h12v10z"/><path d="M12 11c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>'); background-size: cover; cursor: pointer; z-index: 150; transition: transform 0.3s ease, opacity 0.3s; transform-origin: bottom center; }
+#treasureChest.hidden { opacity: 0; transform: translateY(100px) scale(0.5); pointer-events: none; }
+#treasureChest.opened { animation: shake-and-open 0.8s forwards; }
+@keyframes shake-and-open { 0%, 20%, 40% { transform: translateX(0) rotate(0); } 10%, 30% { transform: translateX(-5px) rotate(-3deg); } 15%, 35% { transform: translateX(5px) rotate(3deg); } 50% { transform: scale(1.1); } 100% { transform: translateY(-50px) scale(0) rotate(360deg); opacity: 0; } }
+
+/* (新) 商店样式 */
+.shop-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.shop-item-details {
+  display: flex;
+  flex-direction: column;
+}
+.shop-item-details .name {
+  font-weight: 700;
+  color: var(--text);
+}
+.shop-item-details .cost {
+  font-size: 12px;
+  color: var(--text-light);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.shop-item .btn:disabled {
+  background: var(--line);
+  color: var(--text-light);
+  cursor: not-allowed;
+  border-color: var(--line);
+}
+
+/* 拖拽样式 */
+.task.dragging {
+  opacity: .85;
+  box-shadow: 0 8px 20px rgba(100,90,70,.15);
+}
+
+/* ... (文件顶部所有现有样式保持不变) ... */
+
+/* 拖拽样式 */
+.task.dragging {
+  opacity: .85;
+  box-shadow: 0 8px 20px rgba(100,90,70,.15);
+}
+
+/* --- START: 新增的每日清单样式 --- */
+#checklistContainer {
+  position: fixed;
+  top: 50px; /* 在顶部拖动栏下方 */
+  left: 14px;
+  width: 280px;
+  background: rgba(255, 254, 251, 0.85); /* var(--surface) with transparency */
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px;
+  z-index: 100;
+  box-shadow: 0 8px 20px rgba(100,90,70,.08);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 120px);
+}
+
+#checklistContainer .header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 4px 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 8px;
+}
+
+#checklistContainer h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+#checklistContainer #checklistLimit {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-light);
+  background: var(--bg);
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+#checklistItems {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  flex-grow: 1;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.checklist-item:hover {
+  background: rgba(138, 122, 102, 0.05); /* primary with alpha */
+}
+
+.checklist-item-text {
+  flex-grow: 1;
+  margin-right: 12px;
+  overflow: hidden;
+}
+
+.checklist-item-text .title {
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.checklist-item-text .content {
+  font-size: 12px;
+  color: var(--text-light);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.checklist-complete-btn {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--line);
+  border-radius: 50%;
+  background-color: transparent;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.checklist-complete-btn:hover {
+  border-color: var(--primary);
+  background-color: rgba(138, 122, 102, 0.1);
+}
+
+.checklist-complete-btn:active {
+  transform: scale(0.9);
+}
+
+.checklist-add-btn {
+  margin-top: 8px;
+  border: 2px dashed var(--line);
+  background: transparent;
+  width: 100%;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--text-light);
+  font-size: 24px;
+  font-weight: 300;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.checklist-add-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(138, 122, 102, 0.05);
+}
+/* --- END: 新增的每日清单样式 --- */
+
+/* START PATCH: 阶段多段描述区域样式 */
+.stage-notes {
+  display: none;                 /* 初始隐藏 */
+  max-height: 220px;             /* 固定高度，避免把底部按钮顶下去 */
+  overflow: auto;                /* 超出出现滚动条 */
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  margin-top: 8px;
+  margin-bottom: 12px;           /* 给底部按钮留呼吸 */
+}
+
+.stage-notes__item {
+  margin-bottom: 8px;
+}
+
+.stage-notes__item-title {
+  font-weight: 600;
+  margin: 4px 0;
+}
+
+.stage-notes__item textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 60px;
+  resize: vertical;
+}
+/* END PATCH */
+
+
+/* style.css */
+
+/* --- START: 新增的渐显渐隐动画 --- */
+
+/* 1. 为所有弹窗 (dialog) 添加过渡效果 */
+dialog {
+  opacity: 0;
+  transform: scale(0.97) translateY(10px);
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out, display 0.2s;
+  
+  /* 解决关闭时闪烁的问题 */
+  /* transitioning 属性会在JS的帮助下动态添加 */
+  transition-property: opacity, transform;
+}
+
+/* 当弹窗打开时，恢复正常状态，触发动画 */
+dialog[open] {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+/* 当弹窗即将关闭时 (JS会添加这个class)，反向播放动画 */
+dialog.closing {
+  opacity: 0;
+  transform: scale(0.97) translateY(10px);
+}
+
+/* 2. 为弹窗的蒙版背景添加过渡效果 */
+dialog::backdrop {
+  background: rgba(80,70,60,0.0);
+  backdrop-filter: blur(0px);
+  transition: background 0.2s ease-out, backdrop-filter 0.2s ease-out;
+}
+
+/* 当弹窗打开时，蒙版变为我们想要的样子 */
+dialog[open]::backdrop {
+  background: rgba(80,70,60,0.3);
+  backdrop-filter: blur(4px);
+}
+
+/* 当弹窗即将关闭时，蒙版也渐隐 */
+dialog.closing::backdrop {
+  background: rgba(80,70,60,0.0);
+  backdrop-filter: blur(0px);
+}
+
+/* 3. 为任务浮窗 (#taskPopover) 添加过渡效果 */
+#taskPopover.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* (可选) 为左侧清单面板添加入场动画 */
+#checklistContainer {
+  opacity: 0;
+  transform: translateX(-15px);
+  animation: fade-in-left 0.4s 0.2s ease forwards;
+}
+
+@keyframes fade-in-left {
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+/* --- END: 新增的渐显渐隐动画 --- */
+
+/* --- START: 添加的代码 --- */
+.custom-tooltip {
+  position: fixed;
+  background: var(--text);
+  color: var(--bg);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  /* 允许换行符 \n 生效 */
+  white-space: pre-wrap;
+  z-index: 10000;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  /* 限制最大宽度以防止过长 */
+  max-width: 300px; 
+}
+
+.custom-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+/* --- END: 添加的代码 --- */
+
+/* 通用：确保表单控件继承页面字体与字号 */
+input, textarea, select, button {
+  font: inherit;
+  color: inherit;
+}
+
+/* 你已有的 .field 内控件样式将继续生效，这里仅补充占位符可读性 */
+.field input::placeholder,
+.field textarea::placeholder {
+  color: var(--text-light);
+  opacity: 0.9;
+}
+
+/* 如需确保所有文本域都有圆角/边框风格，也可给非 .field 场景兜底 */
+input[type="text"], input[type="number"], input[type="datetime-local"],
+textarea, select {
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: 10px 12px;
+  transition: border-color .2s, box-shadow .2s;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(138, 122, 102, 0.2);
+}
+
+/* === Typography tokens (统一字号) === */
+:root{
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 18px;
+}
+
+/* 按钮（通用 + 右上角顶栏） */
+.btn{ font-size: var(--fs-sm); }               /* 基础按钮字号 */
+.top-right-controls .btn-top{ font-size: var(--fs-sm); } /* 顶部小按钮字号 */
+
+/* 阶段区域：标题与输入框 */
+.stage-notes__item-title{
+  font-size: var(--fs-sm);
+  color: var(--text);
+  font-weight: 600;
+}
+.stage-notes__item textarea{
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+/* 表单控件（弹窗里的输入/选择/多行输入） */
+.field input,
+.field textarea,
+.field select{
+  font-size: var(--fs-sm);
+  color: var(--text);
+}
+
+/* 标签与辅助文字（更轻一些） */
+.field label,
+.help-text{ font-size: var(--fs-xs); }
+
+/* 弹窗标题和 Popover 标题，统一到更清晰的层级 */
+.modal-header h3{ font-size: var(--fs-xl); color: var(--text); margin: 0; }
+#taskPopover h4{ font-size: var(--fs-lg); color: var(--text); }  /* 已有选择器，这里仅确保字号 */
+#taskPopover p{ font-size: var(--fs-xs); }                       /* 时间/次要信息更轻 */
+#taskPopover .description{ font-size: var(--fs-sm); }
+
+
+/* === Fix: make inputs/textarea stretch and keep label on top === */
+
+/* 1) 强制输入控件占满父容器宽度 */
+.field input,
+.field textarea,
+.field select {
+  width: 100%;
+}
+
+/* 2) 防止被其它容器（如 grid/flex）影响，确保 label 在上方 */
+.field {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* 3) 兜底：即使不在 .field 里（极少数情况），弹窗里的控件也尽量拉满 */
+.modal-body input,
+.modal-body textarea,
+.modal-body select {
+  width: 100%;
+  max-width: 100%;
+}
+
+/* --- START: 全局移除 input[type=number] 的上下箭头 --- */
+
+/* 适用于 Chrome, Safari, Edge, Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* 适用于 Firefox */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* --- END: 全局移除 input[type=number] 的上下箭头 --- */
+
+/* --- START: 保留的限定商品样式 --- */
+/* 限定商品页面的网格布局和滚动 */
+#limitedShop {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  max-height: 55vh; /* 限制高度以启用滚动 */
+  overflow-y: auto;
+  padding: 4px;
+}
+
+/* 限定商品卡片样式微调 */
+#limitedShop .shop-item {
+  align-items: flex-start; /* 垂直方向顶部对齐 */
+}
+
+#limitedShop .shop-item-details .name {
+  font-size: 14px;
+}
+#limitedShop .shop-item-details .cost {
+  margin-top: 4px;
+}
+#limitedShop .shop-item-details .province {
+  font-size: 11px;
+  color: var(--text-light);
+  background: var(--line);
+  padding: 1px 5px;
+  border-radius: 4px;
+  display: inline-block;
+  margin-top: 8px;
+}
+/* --- END: 保留的限定商品样式 --- */
+
+/* --- START: 新增样式 --- */
+
+/* 已购买的限定商品卡片样式 */
+#limitedShop .shop-item.purchased {
+  opacity: 0.6;
+  filter: grayscale(80%);
+  background-color: var(--line);
+}
+
+/* 确保已拥有商品的按钮视觉上更明确 */
+#limitedShop .shop-item.purchased .btn {
+  pointer-events: none;
+}
+/* --- END: 新增样式 --- */
+
+/* --- START: 新增的睡眠弹窗样式 --- */
+#sleepModal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background-color: var(--bg);
+  z-index: 9999;
+  /* 确保弹窗不能通过点击外部关闭 */
+  pointer-events: auto;
+}
+
+#sleepModal::backdrop {
+  /* 使用背景色覆盖，而不是半透明 */
+  background-color: var(--bg);
+  backdrop-filter: none;
+}
+/* --- END: 新增的睡眠弹窗样式 --- */
+
+/* --- START: 每日清单拖拽排序样式 --- */
+
+/* 1. 拖拽把手样式 */
+.checklist-drag-handle {
+  flex-shrink: 0;
+  width: 20px;
+  height: 22px;
+  margin-right: 8px; /* 与文字分隔开 */
+  cursor: grab;
+  color: var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.checklist-drag-handle:active {
+  cursor: grabbing;
+}
+
+/* 2. 当一个项被拖动时的样式 */
+.checklist-item.dragging {
+  opacity: 0.6;
+  background: rgba(138, 122, 102, 0.1); /* primary with alpha */
+  box-shadow: 0 4px 12px rgba(100,90,70,0.1);
+}
+
+/* 3. 当一个项被拖拽到另一个项上时，目标项的样式（作为放置提示） */
+.checklist-item.drag-over {
+  border-top: 2px solid var(--primary);
+}
+
+/* 4. 调整清单项布局以容纳拖拽把手 */
+.checklist-item {
+  /* 已有: display: flex; align-items: center; ... */
+  padding: 10px 10px 10px 4px; /* 左侧留出空间给把手 */
+}
+
+/* --- END: 每日清单拖拽排序样式 --- */

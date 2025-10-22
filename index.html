@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TickLine</title>
+  <style>
+    @font-face {
+      font-family: '方正清刻本悦宋简体';
+      src: local('方正清刻本悦宋简体'), local('FZQingKeBenYueSongS-R-GB');
+    }
+  </style>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- START: 新增的每日清单容器 -->
+  <div id="checklistContainer">
+    <div class="header">
+      <h4>每日清单</h4>
+      <span id="checklistLimit">0/0</span>
+    </div>
+    <ul id="checklistItems"></ul>
+    <button id="checklistAddBtn" class="checklist-add-btn">+</button>
+  </div>
+  <!-- END: 新增的每日清单容器 -->
+
+  <div id="timeline"></div>
+
+  <!-- 右上角按钮组 -->
+  <div class="top-right-controls">
+    <button id="redeemBtn" class="btn-top">兑换</button>
+    <button id="shopBtn" class="btn-top">商店</button>
+    <button id="upgradeBtn" class="btn-top">统计</button>
+    <!-- START: 新增的代码 -->
+    <button id="sleepBtn" class="btn-top">就寝</button>
+    <!-- END: 新增的代码 -->
+  </div>
+
+  <div id="treasureChest" class="hidden"></div>
+
+  <!-- 任务浮窗 -->
+  <div id="taskPopover">
+    <h4 id="popoverTitle"></h4>
+    <p id="popoverTime"></p>
+    <div id="popoverDesc" class="description"></div>
+    <p id="popoverStageInfo" style="margin-top:6px; font-size:12px; color:var(--text);"></p>
+    <p id="popoverAP" style="margin:6px 0 0; font-size:12px; color:var(--text-light);"></p>
+    <div class="footer">
+      <button class="btn" id="popoverAdvanceStage" style="display:none;">推进阶段</button>
+      <button class="btn" id="popoverComplete">完成</button>
+      <button class="btn primary" id="popoverEdit">编辑</button>
+    </div>
+  </div>
+
+  <!-- 任务编辑/创建弹窗 -->
+  <dialog id="taskModal">
+    <div class="modal-header">
+      <h3 id="taskModalTitle">新建任务</h3>
+      <button class="modal-close-btn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="row">
+        <div class="field">
+          <label for="taskType">任务类型</label>
+          <select id="taskType">
+            <option value="daily">每日</option>
+            <option value="weekly">每周</option>
+            <option value="monthly">每月</option>
+            <option value="yearly">每年（需解锁）</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="taskName">名称</label>
+          <input id="taskName" placeholder="如：早间阅读" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="taskStart">开始时间</label>
+          <input type="datetime-local" id="taskStart" />
+        </div>
+        <div class="field">
+          <label for="taskEnd">结束时间</label>
+          <input type="datetime-local" id="taskEnd" />
+        </div>
+      </div>
+      <!-- 行动力/阶段配置区（对所有任务都适用） -->
+      <div class="row stage-inline">
+        <div class="field">
+          <label for="taskStageCount">阶段数量</label>
+          <input id="taskStageCount" type="number" min="1" value="1" />
+        </div>
+
+        <div class="field">
+          <label for="taskStageCost">每阶段消耗 (0.1-3)</label>
+          <input id="taskStageCost" type="text" inputmode="decimal" pattern="[0-9]*\.?[0-9]+" min="0.1" max="3" value="1" />
+        </div>
+        <div class="field field-confirm">
+          <label style="visibility:hidden;">占位</label>
+          <button id="confirmStagesBtn" class="btn">确认阶段</button>
+        </div>
+      </div>
+
+    <div id="stageNotesContainer" class="stage-notes">
+    </div>
+      <div class="field" style="margin-bottom: 16px;">
+        <label for="taskDesc">任务描述 (将作为首个阶段的备注)</label>
+        <textarea id="taskDesc" rows="3" placeholder="补充说明…"></textarea>
+      </div>
+      <p class="help-text" id="taskRuleHelp"></p>
+    </div>
+    <div class="modal-footer">
+      <div><button class="btn danger" id="taskDeleteBtn">删除</button></div>
+      <div style="display:flex; gap:8px"><button class="btn" data-action="close-dialog">取消</button><button class="btn primary" id="taskSave">保存</button></div>
+    </div>
+  </dialog>
+
+  <!-- 汇报弹窗 -->
+  <dialog id="reportModal">
+    <div class="modal-header"><h3>提交完成汇报</h3><button class="modal-close-btn">&times;</button></div>
+    <div class="modal-body">
+      <div id="reportSegments" style="display:flex; flex-direction:column; gap:12px; margin-bottom:12px;"></div>
+      <div><button class="btn" id="addSegBtn">+ 添加段落</button></div>
+      <p class="help-text" style="margin-top:12px;">积分奖励: 周=7, 月=30。每日任务需通过与AI互动获取兑换码来兑换积分。</p>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end;">
+      <button class="btn" data-action="close-dialog">取消</button>
+      <button class="btn primary" id="reportSubmit">提交并完成</button>
+    </div>
+  </dialog>
+
+  <!-- AI引导弹窗 -->
+  <dialog id="aiPromptModal">
+    <div class="modal-header"><h3>与AI进行每日复盘</h3><button class="modal-close-btn">&times;</button></div>
+    <div class="modal-body">
+      <p>恭喜！您已完成今日所有每日任务配额。</p>
+      <p>为了获得积分奖励，请进行一次每日复盘。请将您数据目录下的 **所有 `.json` 文件** 的内容，一次性复制并发送给 AI 助手（如 ChatGPT、文心一言、Kimi等）。</p>
+      <p class="help-text">数据目录位置: <code>C:\src\TickLine\data</code></p>
+      <p>AI会引导您进行反思。当您完成反思后，AI会提供一个兑换码。请回到本应用，点击右上角的“兑换”按钮输入该兑换码以领取您的每日积分。</p>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end;">
+      <button class="btn primary" onclick="this.closest('dialog').close()">我明白了</button>
+    </div>
+  </dialog>
+
+  <!-- 兑换码输入弹窗 -->
+  <dialog id="codeEntryModal">
+    <div class="modal-header"><h3>输入每日兑换码</h3><button class="modal-close-btn">&times;</button></div>
+    <div class="modal-body">
+      <p class="help-text">请输入您从AI助手那里获得的兑换码以领取每日任务积分。</p>
+      <div class="field">
+        <label for="codeInput">兑换码</label>
+        <input type="text" id="codeInput" placeholder="TICKLINE-..." />
+      </div>
+      
+      <!-- START: 新增的提示 -->
+      <p class="help-text" style="margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px;">
+        <b>数据文件位置：</b><br>
+        <code>C:\src\TickLine\data</code><br>
+        <span style="font-size: var(--fs-xs);">请将此目录下的所有 `.json` 文件内容提供给AI以获取兑换码。</span>
+      </p>
+      <!-- END: 新增的提示 -->
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end;">
+      <button class="btn" data-action="close-dialog">取消</button>
+      <button class="btn primary" id="redeemSubmitBtn">兑换</button>
+    </div>
+  </dialog>
+
+  <!-- 商店弹窗 -->
+  <dialog id="shopModal">
+    <div class="modal-header">
+      <h3>水葬银货商店</h3>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <img src="水葬银货.png" alt="水葬银货" width="20" height="20">
+        <span id="shopSilverCount" style="font-weight: 700; font-size: 16px;">0</span>
+      </div>
+      <button class="modal-close-btn">&times;</button>
+    </div>
+    <!-- START: MODIFICATION (移除了页签结构) -->
+    <div class="modal-body">
+      <!-- 直接保留限定商品的容器，并移除 tab-pane class -->
+      <div id="limitedShop">
+        <!-- 限定商品将由JS注入这里 -->
+      </div>
+    </div>
+    <!-- END: MODIFICATION -->
+    <div class="modal-footer" style="justify-content:space-between;">
+        <!-- START: 新增的提示 -->
+        <div>
+            <p class="help-text">所有商品均为永久加成。</p>
+            <p class="help-text" style="color: var(--primary);">注意：AP上限加成将在次日凌晨6:00后生效。</p>
+        </div>
+        <!-- END: 新增的提示 -->
+        <button class="btn" onclick="this.closest('dialog').close()">关闭</button>
+    </div>
+  </dialog>
+
+  <!-- 奖励轨道视图 -->
+  <div id="rewardsTrack" style="display: none;">
+    <div class="rewards-content">
+      <div class="rewards-header">
+        <div>
+          <h2>统计数据</h2>
+          <p>完成任务累积积分，自动解锁新功能与上限。</p>
+        </div>
+        <button class="btn" id="backToTimelineBtn">&larr; 返回时间轴</button>
+      </div>
+      <div class="rewards-stats">
+        <div class="stats-card rewards-points-display">
+          <div class="label">当前总积分</div>
+          <div class="points" id="currentPointsDisplay">0</div>
+        </div>
+        <div class="stats-card current-limits">
+          <h4>当前状态</h4>
+          <ul>
+            <li><span class="limit-label">每日 (创建/并行)</span><span class="limit-value" id="limit-daily-max">0</span></li>
+            <li><span class="limit-label">每周 (创建/并行)</span><span class="limit-value" id="limit-weekly-max">0</span></li>
+            <li><span class="limit-label">每月 (创建/并行)</span><span class="limit-value" id="limit-monthly-max">0</span></li>
+            <li><span class="limit-label">年度任务</span><span class="limit-value" id="limit-yearly">未解锁</span></li>
+          </ul>
+          <!-- START: MODIFICATION -->
+          <h4 style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line);">累计完成</h4>
+          <ul>
+            <li><span class="limit-label">每日任务</span><span class="limit-value" id="completed-daily-count">0</span></li>
+            <li><span class="limit-label">每周任务</span><span class="limit-value" id="completed-weekly-count">0</span></li>
+            <li><span class="limit-label">每月任务</span><span class="limit-value" id="completed-monthly-count">0</span></li>
+            <li id="completed-yearly-row" style="display: none;"><span class="limit-label">年度任务</span><span class="limit-value" id="completed-yearly-count">0</span></li>
+          </ul>
+          <!-- END: MODIFICATION -->
+        </div>
+      </div>
+      <div id="trackContainer">
+        <div class="track-line"></div>
+        <div class="track-progress" id="trackProgress"></div>
+        <div id="trackMilestones"></div>
+      </div>
+      <div class="achievements-card">
+        <h4>成就</h4>
+        <div class="achievements-grid" id="achievementsGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- START: 新增的每日清单编辑弹窗 -->
+  <dialog id="checklistItemModal">
+    <div class="modal-header">
+      <h3 id="checklistItemModalTitle">新建事项</h3>
+      <button class="modal-close-btn">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field" style="margin-bottom: 16px;">
+        <label for="checklistItemTitle">标题</label>
+        <input id="checklistItemTitle" placeholder="如：喝八杯水" />
+      </div>
+      <div class="field">
+        <label for="checklistItemContent">内容 (选填)</label>
+        <textarea id="checklistItemContent" rows="3" placeholder="补充说明…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div><button class="btn danger" id="checklistItemDeleteBtn">删除</button></div>
+      <div style="display:flex; gap:8px">
+        <button class="btn" data-action="close-dialog">取消</button>
+        <button class="btn primary" id="checklistItemSave">保存</button>
+      </div>
+    </div>
+  </dialog>
+  <!-- END: 新增的每日清单编辑弹窗 -->
+
+  <!-- START: 新增的睡眠锁定弹窗 -->
+  <dialog id="sleepModal">
+    <div class="modal-body" style="text-align: center; display: flex; flex-direction: column; justify-content: center; height: 100%;">
+      <h3 style="font-size: 28px;">请去睡觉</h3>
+      <p style="color: var(--text-light);">应用已锁定，为明日养精蓄锐。</p>
+      <div style="margin-top: 24px;">
+        <p style="margin: 0;">解锁时间：<span id="unlockTimeDisplay"></span></p>
+        <p id="countdownDisplay" style="font-size: 32px; font-weight: 700; margin-top: 8px; color: var(--primary);"></p>
+      </div>
+    </div>
+  </dialog>
+  <!-- END: 新增的睡眠锁定弹窗 -->
+
+  <div class="toast" id="toast"></div>
+
+  <div id="customTooltip" class="custom-tooltip"></div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,47 @@
+{
+  "name": "task-timeline-app",
+  "version": "1.3.6",
+  "description": "水葬·银货",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^38.2.2",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.example.tickline",
+    "productName": "TickLine",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "style.css",
+      "js/**/*",
+      "水葬银货.png",
+      "主管团子.png",
+      "主管团子.ico"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "主管团子.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "主管团子.png"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "主管团子.png"
+    }
+  }
+}
